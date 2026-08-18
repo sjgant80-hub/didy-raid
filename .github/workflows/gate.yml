@@ -12,16 +12,23 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
 
+      # Named explicitly, not discovered. Test-file globbing differs between Node versions, and a
+      # gate whose baseline depends on which files the runner felt like finding is a gate that can
+      # go red on a green tree — which is exactly how this step first failed.
       - name: the tests actually run
-        run: node --test
+        run: node --test raid.test.mjs kit.test.mjs party.test.mjs
 
       - name: witness - the tests are not theatre
         run: |
           git clone --depth 1 --branch v0.4 https://github.com/sjgant80-hub/witness.git /tmp/w \
             || git clone --depth 1 https://github.com/sjgant80-hub/witness.git /tmp/w
-          node /tmp/w/witness.mjs mutate raid.mjs --test "node --test" | tee /tmp/gate.json
+          TESTS="node --test raid.test.mjs kit.test.mjs party.test.mjs"
+          echo "baseline, exactly as the gate will run it:"
+          $TESTS || { echo "the suite is red before any mutation - fix that first"; exit 1; }
+          node /tmp/w/witness.mjs mutate raid.mjs --test "$TESTS" | tee /tmp/gate.json
           node -e "
             const j=JSON.parse(require('fs').readFileSync('/tmp/gate.json','utf8').match(/\{[\s\S]*\}/)[0]);
+            if(j.baselineFailed){ console.error('the gate could not run: '+j.reason); process.exit(1); }
             if(!j.killed){ console.error('NOTHING WAS TESTED - zero mutants is not a pass'); process.exit(1); }
             if(!j.clean){ console.error(j.survived.length+' mutant(s) survived - those lines are test-theatre');
               for(const s of j.survived) console.error('  '+s.line+' '+s.mutation+' | '+s.snippet); process.exit(1); }
