@@ -1,0 +1,48 @@
+name: gate
+# Three checks, because this build has three ways to ship a lie:
+#   · the kernel could be test-theatre        -> witness mutation gate, must be CLEAN
+#   · the catalogue could point at nothing    -> integrity tests on the real estate kit
+#   · the page could disagree with the kernel -> rebuild and diff; a stale page is a different app
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+
+      - name: the tests actually run
+        run: node --test
+
+      - name: witness - the tests are not theatre
+        run: |
+          git clone --depth 1 --branch v0.4 https://github.com/sjgant80-hub/witness.git /tmp/w \
+            || git clone --depth 1 https://github.com/sjgant80-hub/witness.git /tmp/w
+          node /tmp/w/witness.mjs mutate raid.mjs --test "node --test" | tee /tmp/gate.json
+          node -e "
+            const j=JSON.parse(require('fs').readFileSync('/tmp/gate.json','utf8').match(/\{[\s\S]*\}/)[0]);
+            if(!j.killed){ console.error('NOTHING WAS TESTED - zero mutants is not a pass'); process.exit(1); }
+            if(!j.clean){ console.error(j.survived.length+' mutant(s) survived - those lines are test-theatre');
+              for(const s of j.survived) console.error('  '+s.line+' '+s.mutation+' | '+s.snippet); process.exit(1); }
+            console.log('witness CLEAN - score '+j.score+', '+j.killed+' mutants killed');
+          "
+
+      - name: THE PAGE IS THE KERNEL - rebuild and diff
+        run: |
+          node build-page.mjs
+          git diff --exit-code -- index.html || {
+            echo "index.html is stale: the kernel changed and the page still serves the old one.";
+            echo "Run: node build-page.mjs && git add index.html"; exit 1; }
+
+      - name: the page has no dead controls
+        run: |
+          node -e "
+            const s=require('fs').readFileSync('index.html','utf8');
+            const ids=[...s.matchAll(/id=\"([A-Za-z][\w-]*)\"/g)].map(m=>m[1]);
+            const dead=ids.filter(i=>/^(train|reset|theme|go|copycode|disband|joinform|zoneform)$/.test(i)
+                                     && !new RegExp(\"'#\"+i+\"'\").test(s));
+            if(dead.length){ console.error('controls with no handler: '+dead.join(', ')); process.exit(1); }
+            if(/__[A-Z][A-Z0-9_]*__/.test(s)){ console.error('unresolved placeholder served to a visitor'); process.exit(1); }
+            console.log('page ok - '+ids.length+' ids, every named control is wired');
+          "

@@ -1,0 +1,614 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Armoury — kit your didy before you go out</title>
+<meta name="description" content="A fallworld room. Say where you are going and your didy kits itself from the estate. The bar that levels up is how much of the raid runs on your own electric instead of rented.">
+<style>
+:root{
+  --ground:#0b0e12; --stone:#141a21; --stone-2:#0f151b; --edge:#2b3542; --edge-soft:#1d2530;
+  --ink:#e4ebf2; --dim:#94a2b1; --faint:#5f6d7c;
+  --gold:#e0b055; --gold-deep:#8a6a22;
+  --mine:#59d9a4;      /* yours forever — deterministic, no model */
+  --small:#5fa8e8;     /* a small model will do */
+  --rent:#e0813f;      /* above your rig: rented, on somebody else's electric */
+  --blood:#d9635e;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Cascadia Mono",monospace;
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+:root[data-theme="light"]{
+  --ground:#e6e9ee; --stone:#fff; --stone-2:#eff2f6; --edge:#c3cdd8; --edge-soft:#dee5ec;
+  --ink:#141b23; --dim:#54626f; --faint:#8593a1;
+  --gold:#8a6410; --gold-deep:#d8c48c;
+  --mine:#0c7a58; --small:#22598f; --rent:#a8551a; --blood:#a83c37;
+}
+@media (prefers-color-scheme:light){ :root:not([data-theme="dark"]){
+  --ground:#e6e9ee; --stone:#fff; --stone-2:#eff2f6; --edge:#c3cdd8; --edge-soft:#dee5ec;
+  --ink:#141b23; --dim:#54626f; --faint:#8593a1;
+  --gold:#8a6410; --gold-deep:#d8c48c;
+  --mine:#0c7a58; --small:#22598f; --rent:#a8551a; --blood:#a83c37;
+}}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5;
+  display:flex;flex-direction:column;-webkit-text-size-adjust:100%}
+button,input,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+h2{margin:0;font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--faint);font-weight:600}
+
+/* ── the character bar: the one thing that levels up ─────────────── */
+#you{
+  display:grid;grid-template-columns:auto 1fr auto;gap:8px 16px;align-items:center;
+  padding:9px 16px;background:var(--stone);border-bottom:1px solid var(--edge);flex:0 0 auto;
+}
+.crest{display:flex;align-items:baseline;gap:10px;min-width:0}
+.crest .nm{font-family:var(--mono);font-size:14px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+.crest .nm b{color:var(--gold)}
+.crest .rank{
+  font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  border:1px solid var(--gold-deep);color:var(--gold);border-radius:2px;padding:2px 7px;white-space:nowrap;
+}
+.xp{min-width:0}
+.xp .lab{display:flex;justify-content:space-between;gap:10px;font-family:var(--mono);font-size:10px;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:3px}
+.xp .lab b{color:var(--mine);font-variant-numeric:tabular-nums}
+.xp .lab b.part{color:var(--rent)}
+.track{height:11px;background:var(--stone-2);border:1px solid var(--edge);border-radius:2px;overflow:hidden;display:flex}
+.track i{display:block;height:100%;background:var(--mine);transition:width .35s ease}
+.track u{display:block;height:100%;background:repeating-linear-gradient(45deg,var(--rent),var(--rent) 4px,transparent 4px,transparent 8px);
+  transition:width .35s ease}
+.tools{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.tools button{background:none;border:1px solid var(--edge);color:var(--dim);border-radius:2px;
+  padding:3px 9px;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
+.tools button:hover{border-color:var(--gold);color:var(--gold)}
+
+/* ── the three panels ───────────────────────────────────────────── */
+main{flex:1 1 auto;min-height:0;display:grid;gap:1px;background:var(--edge);
+  grid-template-columns:minmax(0,300px) minmax(0,1fr) minmax(0,330px)}
+.pane{background:var(--ground);min-width:0;display:flex;flex-direction:column;min-height:0;overflow-y:auto}
+.pane>.hd{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 13px;
+  background:var(--stone);border-bottom:1px solid var(--edge-soft);position:sticky;top:0;z-index:2;flex:0 0 auto}
+.pane>.hd em{font-style:normal;font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.06em;text-align:right}
+.pad{padding:13px;display:flex;flex-direction:column;gap:13px}
+
+/* ── the rig: what you own, and what building the next one buys ─── */
+.rung{display:grid;grid-template-columns:auto 1fr;gap:9px;align-items:start;padding:9px 10px;
+  border:1px solid var(--edge-soft);border-radius:3px;background:var(--stone-2)}
+.rung.now{border-color:var(--mine)}
+.rung .pip{width:9px;height:9px;transform:rotate(45deg);background:var(--edge);margin-top:5px}
+.rung.now .pip{background:var(--mine)}
+.rung .t{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+.rung.now .t{color:var(--mine)}
+.rung .s{font-size:12.5px;color:var(--dim);line-height:1.4}
+#train{width:100%;background:var(--gold);color:var(--ground);border:none;border-radius:3px;padding:9px;
+  font-family:var(--mono);font-size:11px;letter-spacing:.11em;text-transform:uppercase;font-weight:700;cursor:pointer}
+#train:hover{filter:brightness(1.09)}
+#train:disabled{background:var(--stone-2);color:var(--faint);border:1px solid var(--edge);cursor:default;filter:none}
+.gain{font-size:12.5px;color:var(--dim);line-height:1.45}
+.gain b{color:var(--mine)}
+
+/* ── the kit ────────────────────────────────────────────────────── */
+.slots{display:grid;gap:9px}
+.item{
+  position:relative;border:1px solid var(--edge);border-left-width:3px;border-radius:3px;
+  background:var(--stone);padding:9px 11px;display:grid;gap:4px;cursor:help;
+}
+.item.mine{border-left-color:var(--mine)}
+.item.small{border-left-color:var(--small)}
+.item.rent{border-left-color:var(--rent)}
+.item.void{border-style:dashed;border-left-width:1px;background:none;opacity:.5;cursor:default;
+  font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);padding:13px 11px;text-align:center}
+.item .r1{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.item .nm{font-weight:650;font-size:14.5px}
+.item.mine .nm{color:var(--mine)} .item.small .nm{color:var(--small)} .item.rent .nm{color:var(--rent)}
+.item .tagline{margin-left:auto;display:flex;gap:5px;align-items:center;flex-shrink:0}
+.pill{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;
+  border:1px solid var(--edge);border-radius:99px;padding:1px 7px;color:var(--dim);white-space:nowrap}
+.pill.rent{border-color:var(--rent);color:var(--rent)}
+.pill.mine{border-color:var(--mine);color:var(--mine)}
+.item .why{font-size:12.5px;color:var(--dim);line-height:1.45}
+.sockets{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-top:2px}
+.rune{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;
+  border:1px solid var(--small);color:var(--small);border-radius:99px;padding:2px 8px 2px 5px}
+.rune i{width:7px;height:7px;transform:rotate(45deg);background:var(--small);display:inline-block}
+.hole{width:11px;height:11px;transform:rotate(45deg);border:1px dashed var(--edge)}
+.vial{display:inline-flex;gap:6px;align-items:baseline;border:1px solid var(--gold-deep);border-radius:3px;
+  padding:5px 9px;font-size:12.5px;color:var(--dim)}
+.vial b{color:var(--gold);font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+
+/* ── the zone ───────────────────────────────────────────────────── */
+#zoneform{display:flex;gap:8px}
+#zone{flex:1 1 auto;background:var(--stone-2);border:1px solid var(--edge);border-radius:3px;padding:10px 12px;
+  resize:none;min-height:44px;max-height:120px;font-size:14.5px}
+#go{background:var(--gold);color:var(--ground);border:none;border-radius:3px;padding:0 17px;font-weight:700;
+  font-family:var(--mono);font-size:11px;letter-spacing:.11em;text-transform:uppercase;cursor:pointer;white-space:nowrap}
+#go:hover{filter:brightness(1.09)}
+.quests{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:6px;padding-bottom:5px}
+.quest{flex:0 0 auto;white-space:nowrap;background:var(--stone);border:1px solid var(--edge);color:var(--dim);
+  border-radius:99px;padding:4px 12px;font-size:12.5px;cursor:pointer}
+.quest:hover{border-color:var(--gold);color:var(--ink)}
+.reads{display:flex;flex-wrap:wrap;gap:6px}
+.read{font-family:var(--mono);font-size:11px;border:1px solid var(--mine);color:var(--mine);
+  border-radius:99px;padding:2px 9px}
+.read span{color:var(--dim)}
+
+/* ── the log ────────────────────────────────────────────────────── */
+#log{display:flex;flex-direction:column;gap:11px;font-size:13.5px}
+.line{border-left:2px solid var(--edge-soft);padding-left:11px}
+.line.didy{border-left-color:var(--gold)}
+.line.you{border-left-color:var(--mine)}
+.line .who{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+.line .txt{white-space:pre-wrap;overflow-wrap:anywhere;color:var(--dim)}
+.line .txt b{color:var(--ink);font-weight:650}
+.line .txt em{font-style:italic;color:var(--faint)}
+
+/* ── the shadow ─────────────────────────────────────────────────── */
+.dead{display:grid;gap:7px}
+.dead div{font-size:12.5px;color:var(--dim);padding-left:14px;position:relative;line-height:1.45}
+.dead div::before{content:"\00d7";position:absolute;left:0;color:var(--blood);font-family:var(--mono)}
+.dead b{color:var(--ink);font-weight:650}
+.alarm{border:1px solid var(--blood);color:var(--blood);border-radius:3px;padding:9px 11px;font-size:13px}
+.alarm.rented{border-color:var(--rent);color:var(--rent)}
+.quiet{color:var(--faint);font-size:12.5px;font-style:italic}
+.quiet::before{content:none!important}
+.dials{display:grid;grid-template-columns:auto 1fr auto;gap:8px 10px;align-items:center}
+.dials label{font-family:var(--mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
+.dials output{font-family:var(--mono);font-size:12px;color:var(--gold);font-variant-numeric:tabular-nums}
+.dials input[type=range]{width:100%;accent-color:var(--gold)}
+
+/* the one bit of pure game furniture: an item tooltip */
+.item[data-tip]:hover::after{
+  content:attr(data-tip);position:absolute;left:8px;right:8px;top:calc(100% - 4px);z-index:9;
+  background:var(--stone-2);border:1px solid var(--gold-deep);border-radius:3px;padding:8px 10px;
+  font-size:12px;color:var(--dim);line-height:1.45;white-space:pre-wrap;box-shadow:0 6px 20px rgba(0,0,0,.45);
+}
+.pmembers{display:grid;gap:6px}
+.pm{display:flex;align-items:baseline;gap:8px;border:1px solid var(--edge-soft);border-radius:3px;
+  padding:6px 9px;background:var(--stone-2);font-size:12.5px}
+.pm .w{font-weight:650}
+.pm .r{margin-left:auto;font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--dim);white-space:nowrap}
+.pm.host .r{color:var(--mine)}
+#joinform{display:flex;gap:6px}
+#joincode{flex:1 1 auto;min-width:0;background:var(--stone-2);border:1px solid var(--edge);border-radius:3px;
+  padding:7px 9px;font-family:var(--mono);font-size:11px}
+#joinform button{background:none;border:1px solid var(--gold-deep);color:var(--gold);border-radius:3px;
+  padding:0 12px;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
+.prow{display:flex;gap:6px}
+.prow button{flex:1 1 0;background:none;border:1px solid var(--edge);color:var(--dim);border-radius:3px;
+  padding:6px;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
+.prow button:hover{border-color:var(--gold);color:var(--gold)}
+.hosted::before{color:var(--mine)!important}
+footer{padding:8px 16px;border-top:1px solid var(--edge);background:var(--stone);flex:0 0 auto;
+  font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:.05em;display:flex;gap:14px;flex-wrap:wrap}
+footer a{color:var(--dim)}
+
+/* Below 1080 the shadow drops under the pair; below 760 nothing shares a screen height and the page
+   simply scrolls. Squeezing three panes into one phone screen left the log a few pixels tall. */
+@media (max-width:1080px){
+  main{grid-template-columns:minmax(0,270px) minmax(0,1fr)}
+  #shadow{grid-column:1 / -1}
+}
+@media (max-width:760px){
+  body{height:auto;min-height:100%}
+  main{grid-template-columns:1fr}
+  #you{grid-template-columns:1fr;gap:7px}
+  .tools{justify-content:flex-start}
+  .pane{overflow:visible}
+  .pane>.hd{position:static}
+  #shadow{grid-column:auto}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div id="you">
+  <div class="crest">
+    <span class="nm">the<b>&middot;</b>armoury</span>
+    <span class="rank" id="rank">rig 0 &middot; Renting</span>
+  </div>
+  <div class="xp">
+    <div class="lab"><span>your own electric</span><span id="split">no kit yet</span></div>
+    <div class="track" id="track"><i style="width:0"></i><u style="width:0"></u></div>
+  </div>
+  <div class="tools">
+    <button type="button" id="theme">theme</button>
+    <button type="button" id="reset">reset character</button>
+  </div>
+</div>
+
+<main>
+  <section class="pane" id="rigpane">
+    <div class="hd"><h2>your rig</h2><em id="rigNote"></em></div>
+    <div class="pad">
+      <div class="slots" id="rungs"></div>
+      <button type="button" id="train">train the next model</button>
+      <div class="gain" id="gain"></div>
+
+      <h2>party</h2>
+      <div class="gain" id="partyNote"></div>
+      <div class="pmembers" id="pmembers"></div>
+      <form id="joinform">
+        <input id="joincode" placeholder="paste an ally's code" aria-label="Paste an ally's code" autocomplete="off">
+        <button type="submit">join</button>
+      </form>
+      <div class="prow">
+        <button type="button" id="copycode">copy my code</button>
+        <button type="button" id="disband">disband</button>
+      </div>
+      <div class="dead" id="psheet"></div>
+    </div>
+  </section>
+
+  <section class="pane" id="mid">
+    <div class="hd"><h2>where are you going</h2><em id="burn"></em></div>
+    <div class="pad">
+      <form id="zoneform">
+        <textarea id="zone" rows="1" placeholder="say what the job is - audit the estate and gate every build" aria-label="Say what the job is"></textarea>
+        <button id="go" type="submit">kit up</button>
+      </form>
+      <div class="quests" id="quests"></div>
+      <div class="reads" id="reads"></div>
+      <h2>your kit</h2>
+      <div class="slots" id="kit"></div>
+      <div id="vials"></div>
+      <h2>log</h2>
+      <div id="log"></div>
+    </div>
+  </section>
+
+  <section class="pane" id="shadow">
+    <div class="hd"><h2>what you cannot do</h2><em id="cannotN"></em></div>
+    <div class="pad">
+      <div id="alarms"></div>
+      <div class="dead" id="dead"></div>
+      <h2>scarcity</h2>
+      <div class="dials" id="dials"></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span id="proof">kernel: raid.mjs</span>
+  <span>witness: mutation 1.00 &middot; 0 survivors</span>
+  <a href="https://sjgant80-hub.github.io/fallworld/">&larr; fallworld</a>
+  <a href="https://github.com/sjgant80-hub/didy-raid">source</a>
+</footer>
+
+<script type="module">
+/*__KERNEL__*/
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// THE ROOM. Everything below only DRAWS what the kernel above decided, so what a player sees is
+// what the gate proved. The one thing this file owns is the SAVE — because a character that
+// forgets its rig every time you close the tab is not a character, it is a demo.
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+const $ = (s) => document.querySelector(s);
+const el = (t, c, txt) => { const n = document.createElement(t); if (c) n.className = c; if (txt != null) n.textContent = txt; return n; };
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// The save is shared across fallworld on purpose: ONE character, every room. A room that keeps its
+// own private copy is how a world ends up with three different versions of the same player.
+const SAVE = 'fallworld.character.v1';
+const load = () => {
+  try {
+    const c = JSON.parse(localStorage.getItem(SAVE) || '{}');
+    return {
+      rig: Number.isInteger(c.rig) ? Math.max(0, Math.min(RIG.length - 1, c.rig)) : 0,
+      last: typeof c.last === 'string' ? c.last : '',
+      name: typeof c.name === 'string' && c.name.trim() ? c.name.trim().slice(0, 24) : 'you',
+      party: Array.isArray(c.party)
+        ? c.party.filter(m => m && typeof m.who === 'string' && Number.isInteger(m.rig)).slice(0, 4) : [],
+    };
+  } catch { return { rig: 0, last: '', name: 'you', party: [] }; }
+};
+// Private browsing throws on write. Losing the save is a shame; losing the room is not acceptable.
+const save = (c) => { try { localStorage.setItem(SAVE, JSON.stringify(c)); } catch { /* play on, just do not remember */ } };
+
+let me = load();
+let now = null;
+const LIMITS = { slots: 4, budget: 6, potionBudget: 2 };
+
+const QUESTS = [
+  'audit the estate and gate every build',
+  'prove this kernel is clean and judge the tests',
+  'remember this session and recall it by meaning',
+  'build and ship a page, then push it live',
+  'watch the live page and check it renders',
+  'explain where this agent is blind',
+];
+
+const tier = (e) => (e.rented ? 'rent' : e.mind === 0 ? 'mine' : 'small');
+
+function tell(who, txt) {
+  const l = el('div', 'line ' + who);
+  l.append(el('div', 'who', who === 'you' ? 'you' : 'didy'));
+  const t = el('div', 'txt'); t.innerHTML = txt; l.append(t);
+  $('#log').append(l);
+}
+
+// ── the character bar ─────────────────────────────────────────────────────────────────────────
+function drawYou(s) {
+  const r = rigAt(me.rig);
+  $('#rank').textContent = `rig ${r.level} · ${r.name}`;
+  $('#rigNote').textContent = r.holds === 0 ? 'no model of your own' : `holds mind ${r.holds}`;
+
+  const own = $('#track i'), rented = $('#track u');
+  if (!s || s.sovereignty === null) {
+    own.style.width = '0'; rented.style.width = '0';
+    $('#split').textContent = 'no kit yet';
+  } else {
+    const pct = Math.round(s.sovereignty * 100);
+    own.style.width = pct + '%'; rented.style.width = (100 - pct) + '%';
+    $('#split').innerHTML = pct === 100 ? `<b>${pct}% yours</b>`
+      : `<b>${pct}% yours</b> &middot; <b class="part">${100 - pct}% rented</b>`;
+  }
+
+  const rungs = $('#rungs'); rungs.replaceChildren();
+  for (const rung of RIG) {
+    const d = el('div', 'rung' + (rung.level === r.level ? ' now' : ''));
+    d.append(el('span', 'pip'));
+    const b = el('div');
+    b.append(el('div', 't', `${rung.level} · ${rung.name}`));
+    b.append(el('div', 's', rung.blurb));
+    d.append(b); rungs.append(d);
+  }
+
+  const train = $('#train'), gain = $('#gain');
+  const next = s && s.nextRig;
+  if (me.rig >= RIG.length - 1) {
+    train.disabled = true; train.textContent = 'nothing left to rent';
+    gain.textContent = 'You own every size of model this ladder knows about. Nothing in a kit has to leave your machine.';
+  } else if (next) {
+    train.disabled = false; train.textContent = `train up to ${next.name}`;
+    gain.innerHTML = `Building this takes <b>${next.wouldReclaim.map(esc).join('</b>, <b>')}</b> off rented compute and onto your own.`;
+  } else {
+    train.disabled = false; train.textContent = `train up to ${rigAt(me.rig + 1).name}`;
+    gain.innerHTML = (s && s.equipped.length)
+      ? 'Nothing in this kit is rented, so the next model buys you nothing <em>here</em>. It will on a harder job.'
+      : 'Name a job and this says exactly what the next model would take back off rented compute.';
+  }
+}
+
+// ── the kit ───────────────────────────────────────────────────────────────────────────────────
+function drawKit(s) {
+  const kit = $('#kit'); kit.replaceChildren();
+  for (const e of s.equipped) {
+    const d = el('div', 'item ' + tier(e));
+    d.dataset.tip = `${e.name}\n${MIND_NAME[e.mind]}\ncosts ${e.cost} of your ${s.budget}\n\n${e.why}`;
+    const r1 = el('div', 'r1');
+    r1.append(el('span', 'nm', e.name));
+    const tags = el('span', 'tagline');
+    if (e.serves.length) tags.append(el('span', 'pill', e.serves.join(' · ')));
+    tags.append(el('span', 'pill ' + (e.rented ? 'rent' : 'mine'), e.rented ? 'rented' : 'yours'));
+    r1.append(tags); d.append(r1);
+    d.append(el('div', 'why', e.why));
+    if (e.sockets) {
+      const sock = el('div', 'sockets');
+      for (const g of e.gems) {
+        const rn = el('span', 'rune'); rn.append(el('i'));
+        rn.append(document.createTextNode(g.name)); rn.title = g.does; sock.append(rn);
+      }
+      for (let i = e.gems.length; i < e.sockets; i++) { const h = el('span', 'hole'); h.title = 'empty socket'; sock.append(h); }
+      d.append(sock);
+    }
+    kit.append(d);
+  }
+  for (let i = s.equipped.length; i < s.slots; i++) kit.append(el('div', 'item void', 'empty slot'));
+
+  const v = $('#vials'); v.replaceChildren();
+  if (s.potions.length) {
+    const row = el('div', 'sockets');
+    for (const p of s.potions) {
+      const x = el('span', 'vial'); x.append(el('b', null, p.name));
+      x.append(document.createTextNode(p.does)); row.append(x);
+    }
+    v.append(row);
+  }
+
+  const reads = $('#reads'); reads.replaceChildren();
+  for (const r of s.reads) { const c = el('span', 'read'); c.innerHTML = `${esc(r.intent)} <span>${esc(r.hit.join(' '))}</span>`; reads.append(c); }
+
+  $('#burn').textContent = `${s.slotsUsed}/${s.slots} slots · ${s.spent}/${s.budget} · ${s.status}`;
+}
+
+// ── the shadow ────────────────────────────────────────────────────────────────────────────────
+function drawShadow(s) {
+  const al = $('#alarms'); al.replaceChildren();
+  if (s.uncovered.length) {
+    al.append(el('div', 'alarm', `You cannot ${s.uncovered.join(' or ')} on this kit. The job asked for it and nothing you carry serves it.`));
+  }
+  if (s.rented.length) {
+    al.append(el('div', 'alarm rented',
+      `${s.rented.map(r => r.name).join(', ')} ${s.rented.length === 1 ? 'runs' : 'run'} on rented compute — more model than your rig holds.`));
+  }
+  const no = cannot(s, CATALOGUE);
+  const left = no.filter(c => c.kind === 'left behind');
+  const dead = $('#dead'); dead.replaceChildren();
+  for (const c of left) { const d = el('div'); d.innerHTML = `<b>${esc(c.name)}</b> — ${esc(c.why)}`; dead.append(d); }
+  if (!left.length) dead.append(el('div', 'quiet', 'Nothing was refused for room or price.'));
+  const rest = no.length - left.length;
+  if (rest) dead.append(el('div', 'quiet', `${rest} more in the estate that this job never called for.`));
+  $('#cannotN').textContent = `${no.length} of ${CATALOGUE.gear.length}`;
+}
+
+function speak(s) {
+  if (!s.understood) {
+    return tell('didy', 'I could not find a job in that. I listen for what a job <b>needs</b> — to find, prove, remember, build, watch, judge, move or explain. Name the verb and I will kit for it.');
+  }
+  const bits = [`Read as <b>${s.reads.map(r => esc(r.intent)).join('</b>, <b>')}</b>. Kitted ${s.equipped.length} of ${s.slots} for ${s.spent} of ${s.budget}.`];
+  if (s.sovereignty !== null) {
+    const pct = Math.round(s.sovereignty * 100);
+    bits.push(pct === 100 ? 'All of it runs on your own electric.'
+      : `<b>${pct}%</b> runs on your electric; ${s.rented.map(r => `<b>${esc(r.name)}</b>`).join(', ')} ${s.rented.length === 1 ? 'is' : 'are'} rented.`);
+  }
+  if (s.uncovered.length) bits.push(`<em>I cannot ${esc(s.uncovered.join(' or '))} with this.</em>`);
+  tell('didy', bits.join(' '));
+}
+
+// ── one path in ───────────────────────────────────────────────────────────────────────────────
+function kitUp(job, announce) {
+  now = spec(job, CATALOGUE, { slots: LIMITS.slots, budget: LIMITS.budget, potionBudget: LIMITS.potionBudget, rig: me.rig });
+  drawYou(now); drawKit(now); drawShadow(now); drawParty(job);
+  if (announce) speak(now);
+  return now;
+}
+
+$('#zoneform').addEventListener('submit', (ev) => {
+  ev.preventDefault();
+  const job = $('#zone').value.trim();
+  if (!job) return;
+  tell('you', esc(job));
+  me.last = job; save(me);
+  kitUp(job, true);
+  $('#log').lastElementChild.scrollIntoView({ block: 'nearest' });
+});
+$('#zone').addEventListener('keydown', (ev) => {
+  if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); $('#zoneform').requestSubmit(); }
+});
+
+for (const q of QUESTS) {
+  const b = el('button', 'quest', q); b.type = 'button';
+  b.addEventListener('click', () => { $('#zone').value = q; $('#zoneform').requestSubmit(); });
+  $('#quests').append(b);
+}
+
+$('#train').addEventListener('click', () => {
+  if (me.rig >= RIG.length - 1) return;
+  me.rig += 1; save(me);
+  const r = rigAt(me.rig);
+  tell('didy', `You built <b>${esc(r.name)}</b> — ${esc(r.blurb)}.`);
+  kitUp(me.last, true);
+});
+
+$('#reset').addEventListener('click', () => {
+  me = { rig: 0, last: me.last, name: me.name, party: [] }; save(me);
+  tell('didy', 'Character reset. Back to renting every piece of thinking.');
+  kitUp(me.last, false);
+});
+
+$('#theme').addEventListener('click', () => {
+  const set = document.documentElement.getAttribute('data-theme');
+  const dark = set ? set === 'dark' : !matchMedia('(prefers-color-scheme: light)').matches;
+  document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+});
+
+const dials = $('#dials');
+for (const [key, label, min, max] of [['slots', 'slots', 0, 8], ['budget', 'budget', 0, 12], ['potionBudget', 'vials', 0, 4]]) {
+  const l = el('label', null, label); l.htmlFor = 'd-' + key;
+  const i = el('input'); i.type = 'range'; i.id = 'd-' + key; i.min = min; i.max = max; i.value = LIMITS[key];
+  const o = el('output', null, String(LIMITS[key]));
+  i.addEventListener('input', () => { LIMITS[key] = Number(i.value); o.textContent = i.value; kitUp(me.last, false); });
+  dials.append(l, i, o);
+}
+
+// ── the party ─────────────────────────────────────────────────────────────────────────────────
+// No server and no signalling: an ally is a short code you paste. The estate's mesh is the richer
+// transport, but a code that works offline, on a phone, with no account, is the one people actually
+// use — and it is honest about being a snapshot of what somebody built, not a live link to them.
+const code = (c) => btoa(unescape(encodeURIComponent(JSON.stringify(c)))).replace(/=+$/, '');
+const uncode = (t) => {
+  try {
+    const c = JSON.parse(decodeURIComponent(escape(atob(String(t).trim()))));
+    if (!c || typeof c !== 'object') return null;
+    const rig = Number.isInteger(c.r) ? Math.max(0, Math.min(RIG.length - 1, c.r)) : 0;
+    const who = typeof c.w === 'string' && c.w.trim() ? c.w.trim().slice(0, 24) : 'an ally';
+    return { who, rig };
+  } catch { return null; }
+};
+const myCode = () => code({ w: me.name, r: me.rig });
+
+function drawParty(job) {
+  const note = $('#partyNote'), sheet = $('#psheet'), list = $('#pmembers');
+  list.replaceChildren(); sheet.replaceChildren();
+
+  if (!me.party.length) {
+    note.innerHTML = 'Alone. Paste an ally code and what they built comes with them — if they own a '
+      + 'bigger model, the party runs your rented work on <b>their</b> electric instead of renting it.';
+    return;
+  }
+
+  const all = [{ who: me.name, rig: me.rig }, ...me.party];
+  const kits = all.map(m => ({
+    ...spec(job, CATALOGUE, { slots: LIMITS.slots, budget: LIMITS.budget, potionBudget: LIMITS.potionBudget, rig: m.rig }),
+    who: m.who,
+  }));
+  const p = party(kits, CATALOGUE, job);
+
+  for (const m of p.members) {
+    const d = el('div', 'pm' + (p.hosted.some(h => h.host === m.who) ? ' host' : ''));
+    d.append(el('span', 'w', m.who));
+    d.append(el('span', 'r', 'rig ' + m.rig.level + ' · ' + m.rig.name));
+    list.append(d);
+  }
+
+  const solo = now ? now.sovereignty : null;
+  if (p.sovereignty === null) {
+    note.textContent = 'Nobody has kitted for anything yet.';
+  } else {
+    const up = (solo !== null && p.sovereignty > solo) ? ' — up from ' + Math.round(solo * 100) + '% alone.' : '.';
+    note.innerHTML = 'The party runs <b>' + Math.round(p.sovereignty * 100) + '%</b> on its own machines' + up;
+  }
+
+  for (const h of p.hosted) {
+    const d = el('div', 'hosted');
+    d.innerHTML = '<b>' + esc(h.name) + '</b> — ' + esc(h.from) + ' would rent it; ' + esc(h.host) + ' hosts it';
+    sheet.append(d);
+  }
+  if (p.uncovered.length) {
+    const d = el('div');
+    d.innerHTML = '<b>Nobody covers ' + esc(p.uncovered.join(' or ')) + '</b> — the job asked and no member brought it';
+    sheet.append(d);
+  }
+  for (const dd of p.doubled) {
+    const d = el('div');
+    d.innerHTML = '<b>' + esc(dd.name) + '</b> — brought twice (' + dd.by.map(esc).join(', ') + '); one of those slots is free';
+    sheet.append(d);
+  }
+  if (!sheet.childElementCount) sheet.append(el('div', 'quiet', 'No overlap, no gaps, nothing to reclaim.'));
+}
+
+$('#joinform').addEventListener('submit', (ev) => {
+  ev.preventDefault();
+  const ally = uncode($('#joincode').value);
+  if (!ally) {
+    tell('didy', 'That code did not read as anybody. Ask them to press <b>copy my code</b> and send the whole thing.');
+    return;
+  }
+  if (ally.who === me.name || me.party.some(m => m.who === ally.who)) {
+    tell('didy', '<b>' + esc(ally.who) + '</b> is already in the party.');
+    return;
+  }
+  me.party.push(ally); save(me);
+  $('#joincode').value = '';
+  tell('didy', '<b>' + esc(ally.who) + '</b> joined — ' + esc(rigAt(ally.rig).name) + '.');
+  kitUp(me.last, false);
+});
+
+$('#copycode').addEventListener('click', async () => {
+  const c = myCode();
+  try {
+    await navigator.clipboard.writeText(c);
+    tell('didy', 'Your code is copied. Send it to whoever you are raiding with.');
+  } catch {
+    // Clipboard is blocked on plain http and in some browsers. Showing the code beats a dead button.
+    tell('didy', 'Copy is blocked here, so here it is to select by hand:\n<b>' + esc(c) + '</b>');
+  }
+});
+
+$('#disband').addEventListener('click', () => {
+  if (!me.party.length) { tell('didy', 'You are already alone.'); return; }
+  me.party = []; save(me);
+  tell('didy', 'Party disbanded.');
+  kitUp(me.last, false);
+});
+
+$('#proof').textContent = `kernel: raid.mjs · ${CATALOGUE.gear.length} organs · ${CATALOGUE.gems.length} runes · ${CATALOGUE.potions.length} vials`;
+
+tell('didy', `I am your didy. Say where you are going and I kit myself from the estate — <b>organs</b> into slots, <b>runes</b> into their sockets, a <b>vial</b> only if it earns its place. Everything I equip tells you why, and I always show you what this kit <b>cannot</b> do.\n\nThe bar at the top is the only thing that really levels up: how much of the job runs on <b>your own electric</b> instead of rented. It rises when you build a model, never when you spend.`);
+
+if (me.last) { $('#zone').value = me.last; kitUp(me.last, false); } else { kitUp('', false); }
+</script>
+</body>
+</html>
