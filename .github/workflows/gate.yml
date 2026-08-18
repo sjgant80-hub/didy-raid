@@ -20,8 +20,9 @@ jobs:
 
       - name: witness - the tests are not theatre
         run: |
-          git clone --depth 1 --branch v0.4 https://github.com/sjgant80-hub/witness.git /tmp/w \
-            || git clone --depth 1 https://github.com/sjgant80-hub/witness.git /tmp/w
+          # v0.6 or newer. Before it, a quoted --test command line was spawned as an executable
+          # NAME on POSIX, so the gate never ran on ubuntu and reported a red baseline instead.
+          git clone --depth 1 --branch v0.6 https://github.com/sjgant80-hub/witness.git /tmp/w
           TESTS="node --test raid.test.mjs kit.test.mjs party.test.mjs"
           echo "baseline, exactly as the gate will run it:"
           $TESTS || { echo "the suite is red before any mutation - fix that first"; exit 1; }
