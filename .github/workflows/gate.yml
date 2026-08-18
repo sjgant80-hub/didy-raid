@@ -48,8 +48,12 @@ jobs:
           node -e "
             const s=require('fs').readFileSync('index.html','utf8');
             const ids=[...s.matchAll(/id=\"([A-Za-z][\w-]*)\"/g)].map(m=>m[1]);
-            const dead=ids.filter(i=>/^(train|reset|theme|go|copycode|disband|joinform|zoneform)$/.test(i)
-                                     && !new RegExp(\"'#\"+i+\"'\").test(s));
+            // A submit button is wired through its FORM, not through itself — listing it as dead
+            // is how a correctness check trains people to ignore correctness checks.
+            const submits=[...s.matchAll(/<button[^>]*id=\"([\w-]+)\"[^>]*type=\"submit\"|<button[^>]*type=\"submit\"[^>]*id=\"([\w-]+)\"/g)]
+                            .map(m=>m[1]||m[2]);
+            const wired=i=>new RegExp(\"'#\"+i+\"'\").test(s)||submits.includes(i);
+            const dead=ids.filter(i=>/^(train|reset|theme|go|copycode|disband|joinform|zoneform|zone|joincode)$/.test(i) && !wired(i));
             if(dead.length){ console.error('controls with no handler: '+dead.join(', ')); process.exit(1); }
             if(/__[A-Z][A-Z0-9_]*__/.test(s)){ console.error('unresolved placeholder served to a visitor'); process.exit(1); }
             console.log('page ok - '+ids.length+' ids, every named control is wired');
